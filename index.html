@@ -173,15 +173,17 @@ async function loadData() {
     dealRate = dealResp.data[0].Exchange_Rate_1 || 0;
     deal.innerText = dealRate;
 
-    const res = await fetch(
-      "https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?valcode=USD&json"
-    );
+    const response = await ZOHO.CRM.HTTP.get({
+      url: "https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange",
+      params: {
+        valcode: "USD",
+        json: "true"
+      },
+      connection: "nbu"
+    });
 
-    if (!res.ok) throw new Error("NBU API error");
-
-    const json = await res.json();
-    nbuRate = json[0].rate;
-
+    const data = JSON.parse(response);
+    nbuRate = data[0].rate;
     nbu.innerText = nbuRate;
 
     if (dealRate > 0 && nbuRate > 0) {
@@ -198,6 +200,7 @@ async function loadData() {
     showError(t("errorNBU"));
   }
 }
+
 
 /* ================= Save ================= */
 
