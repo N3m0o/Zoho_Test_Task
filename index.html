@@ -14,10 +14,7 @@
   />
 
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 10px;
-    }
+    body { font-family: Arial, sans-serif; padding: 10px; }
     .loader {
       width: 16px;
       height: 16px;
@@ -28,15 +25,12 @@
       display: inline-block;
       margin-left: 6px;
     }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 
 <body>
 <div class="container-fluid">
-
   <div class="d-flex justify-content-end mb-2">
     <select id="langSelect" class="form-select form-select-sm w-auto">
       <option value="uk">UA</option>
@@ -61,12 +55,10 @@
   <button id="saveBtn" class="btn btn-primary w-100 d-none">
     <span id="saveText"></span>
   </button>
-
 </div>
 
 <script>
 /* ================= i18n ================= */
-
 const i18n = {
   uk: {
     nbu: "Курс НБУ",
@@ -94,12 +86,21 @@ let lang = localStorage.getItem("lang") || "uk";
 const t = key => i18n[lang][key];
 
 /* ================= State ================= */
-
 let dealId;
 let dealRate = 0;
 let nbuRate = 0;
 
 /* ================= Helpers ================= */
+const nbuLabel = document.getElementById("nbuLabel");
+const dealLabel = document.getElementById("dealLabel");
+const diffLabel = document.getElementById("diffLabel");
+const saveBtn = document.getElementById("saveBtn");
+const saveText = document.getElementById("saveText");
+const error = document.getElementById("error");
+const nbu = document.getElementById("nbu");
+const deal = document.getElementById("deal");
+const diff = document.getElementById("diff");
+const langSelect = document.getElementById("langSelect");
 
 function setTexts() {
   nbuLabel.innerText = t("nbu");
@@ -122,75 +123,58 @@ function log(msg, data = "") {
 }
 
 /* ================= Init ================= */
-
 langSelect.value = lang;
 setTexts();
-
 langSelect.onchange = () => {
   lang = langSelect.value;
   localStorage.setItem("lang", lang);
   setTexts();
 };
 
-function init() {
-  ZOHO.embeddedApp.on("PageLoad", (data) => {
-    console.log("PageLoad data:", data);
+ZOHO.embeddedApp.init().then(() => {
+  console.log("Zoho embedded app initialized");
 
-    dealId = Array.isArray(data.EntityId)
-      ? data.EntityId[0]
-      : data.EntityId;
+  ZOHO.embeddedApp.on("PageLoad", async (data) => {
+    log("PageLoad data", data);
 
-    log("Deal ID", dealId);
-
+    dealId = Array.isArray(data.EntityId) ? data.EntityId[0] : data.EntityId;
     if (!dealId) {
       showError("Deal ID not found");
       return;
     }
-
-    loadData();
+    await loadData();
   });
 
-  ZOHO.embeddedApp.init()
-    .then(() => {
-      console.log("Zoho embedded app initialized");
-    })
-    .catch((err) => {
-      console.error("Zoho embedded app init failed", err);
-      showError("Failed to initialize Zoho app");
-    });
-}
-
+}).catch(err => {
+  console.error("Zoho embedded app init failed", err);
+  showError("Failed to initialize Zoho app");
+});
 
 /* ================= Data ================= */
-
 async function loadData() {
+  hideError();
+
   try {
     const dealResp = await ZOHO.CRM.API.getRecord({
       Entity: "Deals",
       RecordID: dealId
     });
 
-    dealRate = dealResp.data[0].Exchange_Rate_1 || 0;
+    dealRate = dealResp.data[0]?.Exchange_Rate_1 || 0;
     deal.innerText = dealRate;
 
-    const response = await ZOHO.CRM.HTTP.get({
-      url: "https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange",
-      params: {
-        valcode: "USD",
-        json: "true"
-      },
-      connection: "nbu"
-    });
+    const resp = await fetch("https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?valcode=USD&json");
+    const data = await resp.json();
 
-    const data = JSON.parse(response);
+    if (!data || !data[0]?.rate) throw new Error("NBU rate missing");
     nbuRate = data[0].rate;
     nbu.innerText = nbuRate;
-
+    
     if (dealRate > 0 && nbuRate > 0) {
       const diffValue = ((dealRate / nbuRate - 1) * 100);
       diff.innerText = diffValue.toFixed(1) + "%";
 
-      if (diffValue >= 5) {
+      if (Math.abs(diffValue) >= 5) {
         saveBtn.classList.remove("d-none");
       }
     }
@@ -201,12 +185,9 @@ async function loadData() {
   }
 }
 
-
 /* ================= Save ================= */
-
 saveBtn.onclick = async () => {
   hideError();
-
   saveBtn.disabled = true;
   saveText.innerText = t("saving");
   saveBtn.insertAdjacentHTML("beforeend", '<span class="loader"></span>');
@@ -219,7 +200,6 @@ saveBtn.onclick = async () => {
         Exchange_Rate_1: nbuRate
       }
     });
-
     alert(t("updated"));
 
   } catch (e) {
@@ -231,8 +211,6 @@ saveBtn.onclick = async () => {
     saveText.innerText = t("save");
   }
 };
-
-init();
 </script>
 </body>
 </html>
