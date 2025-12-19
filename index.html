@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <title>Exchange Rate Widget</title>
+
+  <!-- Zoho SDK -->
+  <script src="https://js.zohostatic.com/crm/sdk/ZohoEmbededAppSDK.min.js"></script>
+
+  <!-- Bootstrap -->
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 10px;
+    }
+    .loader {
+      width: 16px;
+      height: 16px;
+      border: 2px solid #fff;
+      border-top: 2px solid transparent;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      display: inline-block;
+      margin-left: 6px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+
+<body>
+<div class="container-fluid">
+
+  <div class="d-flex justify-content-end mb-2">
+    <select id="langSelect" class="form-select form-select-sm w-auto">
+      <option value="uk">UA</option>
+      <option value="en">EN</option>
+    </select>
+  </div>
+
+  <div class="mb-2">
+    <b id="nbuLabel"></b>: <span id="nbu">—</span>
+  </div>
+
+  <div class="mb-2">
+    <b id="dealLabel"></b>: <span id="deal">—</span>
+  </div>
+
+  <div class="mb-2">
+    <b id="diffLabel"></b>: <span id="diff">—</span>
+  </div>
+
+  <div id="error" class="alert alert-danger d-none"></div>
+
+  <button id="saveBtn" class="btn btn-primary w-100 d-none">
+    <span id="saveText"></span>
+  </button>
+
+</div>
+
+<script>
+/* ================= i18n ================= */
+
+const i18n = {
+  uk: {
+    nbu: "Курс НБУ",
+    deal: "Курс в угоді",
+    diff: "Різниця",
+    save: "Записати курс в Угоду",
+    saving: "Збереження",
+    errorNBU: "Не вдалося отримати курс НБУ",
+    errorCRM: "Помилка при оновленні угоди",
+    updated: "Курс успішно оновлено"
+  },
+  en: {
+    nbu: "NBU Rate",
+    deal: "Deal Rate",
+    diff: "Difference",
+    save: "Save rate to Deal",
+    saving: "Saving",
+    errorNBU: "Failed to fetch NBU rate",
+    errorCRM: "Error updating deal",
+    updated: "Rate successfully updated"
+  }
+};
+
+let lang = localStorage.getItem("lang") || "uk";
+const t = key => i18n[lang][key];
+
+/* ================= State ================= */
+
+let dealId;
+let dealRate = 0;
+let nbuRate = 0;
+
+/* ================= Helpers ================= */
+
+function setTexts() {
+  nbuLabel.innerText = t("nbu");
+  dealLabel.innerText = t("deal");
+  diffLabel.innerText = t("diff");
+  saveText.innerText = t("save");
+}
+
+function showError(msg) {
+  error.innerText = msg;
+  error.classList.remove("d-none");
+}
+
+function hideError() {
+  error.classList.add("d-none");
+}
+
+function log(msg, data = "") {
+  console.log(`[Widget] ${msg}`, data);
+}
+
+/* ================= Init ================= */
+
+langSelect.value = lang;
+setTexts();
+
+langSelect.onchange = () => {
+  lang = langSelect.value;
+  localStorage.setItem("lang", lang);
+  setTexts();
+};
+
+async function init() {
+  try {
+    await ZOHO.embeddedApp.init();
+
+    dealId = await ZOHO.CRM.UI.Record.getId();
+    log("Deal ID", dealId);
+
+    if (!dealId) {
+      showError("Deal ID not found");
+      return;
+    }
+
+    await loadData();
+
+  } catch (e) {
+    console.error(e);
+    showError("Zoho init error");
+  }
+}
+
+/* ================= Data ================= */
+
+async function loadData() {
+  try {
+    const dealResp = await ZOHO.CRM.API.getRecord({
+      Entity: "Deals",
+      RecordID: dealId
+    });
+
+    dealRate = dealResp.data[0].Exchange_Rate || 0;
+    deal.innerText = dealRate;
+
+    const res = await fetch(
+      "https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?valcode=USD&json"
+    );
+
+    if (!res.ok) throw new Error("NBU API error");
+
+    const json = await res.json();
+    nbuRate = json[0].rate;
+
+    nbu.innerText = nbuRate;
+
+    if (dealRate > 0 && nbuRate > 0) {
+      const diffValue = ((dealRate / nbuRate - 1) * 100);
+      diff.innerText = diffValue.toFixed(1) + "%";
+
+      if (diffValue >= 5) {
+        saveBtn.classList.remove("d-none");
+      }
+    }
+
+  } catch (e) {
+    console.error(e);
+    showError(t("errorNBU"));
+  }
+}
+
+/* ================= Save ================= */
+
+saveBtn.onclick = async () => {
+  hideError();
+
+  saveBtn.disabled = true;
+  saveText.innerText = t("saving");
+  saveBtn.insertAdjacentHTML("beforeend", '<span class="loader"></span>');
+
+  try {
+    await ZOHO.CRM.API.updateRecord({
+      Entity: "Deals",
+      APIData: {
+        id: dealId,
+        Exchange_Rate: nbuRate
+      }
+    });
+
+    alert(t("updated"));
+
+  } catch (e) {
+    console.error(e);
+    showError(t("errorCRM"));
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.querySelector(".loader")?.remove();
+    saveText.innerText = t("save");
+  }
+};
+
+init();
+</script>
+</body>
+</html>
