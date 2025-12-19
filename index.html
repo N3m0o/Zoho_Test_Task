@@ -133,10 +133,19 @@ langSelect.onchange = () => {
 };
 
 function init() {
-  ZOHO.embeddedApp.on("PageLoad", function (data) {
+  if (typeof ZOHO === "undefined" || !ZOHO.embeddedApp) {
+    console.error("Zoho SDK is not available");
+    showError("Zoho CRM SDK is not available in this environment");
+    return;
+  }
+
+  ZOHO.embeddedApp.on("PageLoad", (data) => {
     console.log("PageLoad data:", data);
 
-    dealId = data.EntityId;
+    dealId = Array.isArray(data.EntityId)
+      ? data.EntityId[0]
+      : data.EntityId;
+
     log("Deal ID", dealId);
 
     if (!dealId) {
@@ -147,7 +156,14 @@ function init() {
     loadData();
   });
 
-  ZOHO.embeddedApp.init();
+  ZOHO.embeddedApp.init()
+    .then(() => {
+      console.log("Zoho embedded app initialized");
+    })
+    .catch((err) => {
+      console.error("Zoho embedded app init failed", err);
+      showError("Failed to initialize Zoho app");
+    });
 }
 
 
