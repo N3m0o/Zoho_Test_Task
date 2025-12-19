@@ -5,7 +5,7 @@
   <title>Exchange Rate Widget</title>
 
   <!-- Zoho SDK -->
-  <script src="https://static.zohocdn.com/crm/sdk/zohoEmbededAppSDK.min.js"></script>
+  <script src="https://js.zohostatic.com/embeddedapp/v1.0/ZohoEmbeddedAppSDK.min.js"></script>
 
   <!-- Bootstrap -->
   <link
@@ -133,12 +133,6 @@ langSelect.onchange = () => {
 };
 
 function init() {
-  if (typeof ZOHO === "undefined" || !ZOHO.embeddedApp) {
-    console.error("Zoho SDK is not available");
-    showError("Zoho CRM SDK is not available in this environment");
-    return;
-  }
-
   ZOHO.embeddedApp.on("PageLoad", (data) => {
     console.log("PageLoad data:", data);
 
